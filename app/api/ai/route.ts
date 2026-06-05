@@ -2,8 +2,6 @@ import Groq from "groq-sdk";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY! });
-
 const IMPORTANT_SPECS = ["trọng lượng", "độ cứng", "chất liệu", "balance", "độ dài", "max tension", "lbs"];
 
 function filterSpecs(specs: { key: string; value: string }[]) {
@@ -21,6 +19,16 @@ function filterSpecs(specs: { key: string; value: string }[]) {
 
 export async function POST(req: Request) {
   try {
+    // 0. Kiểm tra API Key ngay tại thời điểm Runtime (Tránh crash khi build trên Netlify)
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) {
+      console.error("CRITICAL ERROR: GROQ_API_KEY is not configured on Netlify environment variables.");
+      return NextResponse.json({ error: "Cấu hình AI chưa hoàn tất" }, { status: 500 });
+    }
+
+    // Khởi tạo client bên trong Handler khi có request thực tế đến
+    const groq = new Groq({ apiKey });
+
     const body = await req.json();
     const { productId, message, history = [], cartItems = [] } = body;
 
@@ -102,7 +110,7 @@ ${relatedText || "Không có"}
 
 GIỎ HÀNG: ${cartText}`;
 
-    // 4. Gọi Groq với web search tool để lấy giá đối thủ realtime
+    // 4. Gọi Groq với bộ công cụ tools
     const response = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
       messages: [
@@ -136,14 +144,14 @@ GIỎ HÀNG: ${cartText}`;
 
     let finalContent = response.choices[0]?.message?.content ?? "";
 
-    // 5. Nếu AI muốn search web → thực hiện search qua Groq
+    // 5. Nếu AI muốn search web → thực hiện search thông qua compound-beta
     if (response.choices[0]?.finish_reason === "tool_calls") {
       const toolCalls = response.choices[0].message.tool_calls ?? [];
       const toolMessages: Groq.Chat.ChatCompletionMessageParam[] = [];
 
       for (const call of toolCalls) {
         const args = JSON.parse(call.function.arguments);
-        // Dùng Groq search compound beta
+        
         const searchResult = await groq.chat.completions.create({
           model: "compound-beta",
           messages: [
@@ -157,12 +165,13 @@ GIỎ HÀNG: ${cartText}`;
 
         toolMessages.push({
           role: "tool",
+          //@ts-ignore
           tool_call_id: call.id,
           content: searchResult.choices[0]?.message?.content ?? "Không tìm thấy kết quả",
         });
       }
 
-      // Gọi lại Groq với kết quả search
+      // Gọi lại Groq kèm theo kết quả thu thập từ Tool
       const finalResponse = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
         messages: [
@@ -178,8 +187,8 @@ GIỎ HÀNG: ${cartText}`;
       finalContent = finalResponse.choices[0]?.message?.content ?? "";
     }
 
-    // 6. Parse JSON từ AI
-    let parsed = { answer: "", suggestedSlugs: [] as string[], competitors: [] as object[] };
+    // 6. Trích xuất và Parse JSON từ AI phản hồi
+    let parsed = { answer: "", suggestedSlugs: [] as string[], competitors: [] as any[] };
     try {
       const jsonMatch = finalContent.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -191,7 +200,7 @@ GIỎ HÀNG: ${cartText}`;
       parsed.answer = finalContent;
     }
 
-    // 7. Lấy thông tin đầy đủ cho suggested products
+    // 7. Lấy thông tin đầy đủ cho các sản phẩm gợi ý dựa trên slug
     const suggestedProducts = parsed.suggestedSlugs?.length > 0
       ? await prisma.product.findMany({
           where: { slug: { in: parsed.suggestedSlugs } },
@@ -200,7 +209,7 @@ GIỎ HÀNG: ${cartText}`;
       : [];
 
     return NextResponse.json({
-      answer: parsed.answer,
+      answer: parsed.answer || finalContent,
       suggestedProducts,
       competitors: parsed.competitors ?? [],
     });
