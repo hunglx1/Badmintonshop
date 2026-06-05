@@ -6,7 +6,7 @@
     "seed": "tsx prisma/seed.ts"
   },
   "scripts": {
-  "postinstall": "prisma generate",
+    "postinstall": "prisma generate",
     "dev": "next dev",
     "build": "next build",
     "start": "next start"
@@ -14,6 +14,7 @@
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",
     "@google/genai": "^2.8.0",
+    "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^5.4.0",
     "@prisma/client": "^5.22.0",
     "axios": "^1.17.0",
