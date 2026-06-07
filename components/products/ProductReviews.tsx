@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 
@@ -69,23 +69,18 @@ export default function ProductReviews({
 
           <div
             key={review.id}
-            className="
-              bg-white
-              rounded-2xl
-              shadow
-              p-5
-            "
+            className="rounded-3xl border border-slate-700 bg-[#111827]/95 p-6 shadow-[0_10px_30px_rgba(0,0,0,0.35)]"
           >
 
-            <div className="flex justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
               <div>
 
-                <div className="font-bold">
+                <div className="font-bold text-slate-100">
                   {review.name}
                 </div>
 
-                <div className="text-yellow-500">
+                <div className="mt-2 text-amber-400">
                   {"⭐".repeat(
                     review.rating
                   )}
@@ -93,7 +88,7 @@ export default function ProductReviews({
 
               </div>
 
-              <div className="text-gray-400">
+              <div className="text-sm text-slate-500">
                 {new Date(
                   review.createdAt
                 ).toLocaleDateString()}
@@ -101,7 +96,7 @@ export default function ProductReviews({
 
             </div>
 
-            <p className="mt-3">
+            <p className="mt-4 text-slate-300 leading-7">
               {review.comment}
             </p>
 
@@ -111,16 +106,9 @@ export default function ProductReviews({
 
       </div>
 
-      <div
-        className="
-          bg-gray-50
-          rounded-2xl
-          p-6
-          mt-8
-        "
-      >
+      <div className="rounded-3xl border border-slate-700 bg-[#0B1220]/95 p-6 mt-8 shadow-[0_15px_35px_rgba(0,0,0,0.35)]">
 
-        <h3 className="font-bold mb-4">
+        <h3 className="mb-4 text-xl font-semibold text-slate-100">
           Viết đánh giá
         </h3>
 
@@ -132,13 +120,7 @@ export default function ProductReviews({
               e.target.value
             )
           }
-          className="
-            w-full
-            border
-            p-3
-            rounded-lg
-            mb-3
-          "
+          className="w-full rounded-3xl border border-slate-700 bg-[#111827] px-4 py-3 text-slate-100 outline-none placeholder:text-slate-500 transition focus:border-[#CCFF00] focus:ring-2 focus:ring-[#CCFF00]/20 mb-3"
         />
 
         <select
@@ -150,13 +132,7 @@ export default function ProductReviews({
               )
             )
           }
-          className="
-            w-full
-            border
-            p-3
-            rounded-lg
-            mb-3
-          "
+          className="w-full rounded-3xl border border-slate-700 bg-[#111827] px-4 py-3 text-slate-100 outline-none placeholder:text-slate-500 transition focus:border-[#CCFF00] focus:ring-2 focus:ring-[#CCFF00]/20 mb-3"
         >
           <option value="5">
             ⭐⭐⭐⭐⭐
@@ -187,26 +163,14 @@ export default function ProductReviews({
             )
           }
           placeholder="Nhận xét..."
-          className="
-            w-full
-            border
-            p-3
-            rounded-lg
-            mb-4
-          "
+          className="w-full rounded-3xl border border-slate-700 bg-[#111827] px-4 py-3 text-slate-100 outline-none placeholder:text-slate-500 transition focus:border-[#CCFF00] focus:ring-2 focus:ring-[#CCFF00]/20 mb-4 min-h-[140px]"
         />
 
         <button
           onClick={
             submitReview
           }
-          className="
-            bg-green-600
-            text-white
-            px-6
-            py-3
-            rounded-xl
-          "
+          className="inline-flex items-center justify-center rounded-3xl bg-[#CCFF00] px-6 py-3 font-semibold text-slate-950 transition hover:bg-[#daff00]/90"
         >
           Gửi đánh giá
         </button>

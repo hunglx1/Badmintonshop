@@ -50,7 +50,7 @@ function renderMarkdown(text: string) {
     if (line.startsWith("• ") || line.startsWith("- ") || line.startsWith("* ")) {
       const content = line.slice(2);
       return (
-        <li key={i} className="ml-3 list-disc text-sm">
+        <li key={i} className="ml-3 list-disc text-sm text-slate-900">
           {renderInline(content)}
         </li>
       );
@@ -58,7 +58,7 @@ function renderMarkdown(text: string) {
     // Empty line
     if (line.trim() === "") return <br key={i} />;
     // Normal line
-    return <p key={i} className="text-sm">{renderInline(line)}</p>;
+    return <p key={i} className="text-sm text-slate-900">{renderInline(line)}</p>;
   });
 }
 
@@ -242,7 +242,7 @@ export default function ProductAIModal({ productId, productName }: Props) {
                       className={`px-4 py-3 rounded-2xl ${
                         msg.role === "user"
                           ? "bg-blue-600 text-white rounded-br-sm text-sm"
-                          : "bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-sm space-y-1"
+                          : "bg-white text-slate-900 shadow-sm border border-gray-100 rounded-bl-sm space-y-1"
                       }`}
                     >
                       {msg.role === "assistant" ? renderMarkdown(msg.content) : msg.content}
@@ -356,7 +356,7 @@ export default function ProductAIModal({ productId, productName }: Props) {
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                   placeholder="Nhập câu hỏi..."
                   disabled={loading}
-                  className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 transition"
+                  className="flex-1 border border-gray-200 rounded-xl bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 transition"
                 />
                 <button
                   onClick={() => sendMessage()}

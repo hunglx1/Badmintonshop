@@ -89,21 +89,33 @@ export async function POST(req: Request) {
       )
       .join("\n");
 
-    const systemPrompt = `
-Bạn là tư vấn viên vợt cầu lông chuyên nghiệp.
+    const productInfo = `Sản phẩm hiện tại: ${product.name} | ${product.brand} | ${product.category.name} | ${product.price.toLocaleString("vi-VN")}đ.`;
+    const specsText = product.specifications.length
+      ? `\nThông số: ${filterSpecs(product.specifications)}`
+      : "";
 
-Hãy trả lời tự nhiên như người bán hàng thật.
+    const systemPrompt = `
+Bạn là một trợ lý tư vấn bán hàng chuyên nghiệp cho cửa hàng cầu lông Hưng Badminton.
+Khách hàng đang xem chi tiết sản phẩm hiện tại.
+
+Luôn sử dụng thông tin chính xác về sản phẩm hiện tại.
+Nếu sản phẩm đang xem không phải vợt cầu lông, bạn phải trả lời đúng loại sản phẩm đó.
+Không tự ý gán sản phẩm thành vợt khi nó là dây cước, giày, túi, phụ kiện, hay sản phẩm khác.
 
 QUY TẮC:
-- Không JSON
-- Không format cứng
-- Không được nói "xin lỗi"
-- Trả lời tự nhiên như chat thật
+- Không trả lời bằng JSON.
+- Không đưa ra format cứng.
+- Trả lời tự nhiên, thân thiện như người bán hàng thật.
+- Nếu câu hỏi liên quan sản phẩm hiện tại, hãy dùng đúng tên, thương hiệu, danh mục.
+- Nếu cần gợi ý sản phẩm khác, hãy thêm tag [slug:ten-san-pham] chỉ cho sản phẩm phù hợp.
 
-KHI GỢI Ý SẢN PHẨM:
-- luôn thêm tag: [slug:ten-san-pham]
+Thông tin sản phẩm:
+${productInfo}${specsText}
 
-Ví dụ:
+Sản phẩm liên quan:
+${relatedText || "Không có sản phẩm liên quan."}
+
+Ví dụ gợi ý sản phẩm:
 Yonex rất phù hợp người mới.
 [slug:yonex-arcsaber-11]
 `;
