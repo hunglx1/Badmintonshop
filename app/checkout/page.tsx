@@ -22,41 +22,19 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useCartStore } from "@/store/cart-store";
+import type { ProvinceLocation } from "@/types/address";
 
 const STORAGE_KEY = "hungbadminton_address";
 const FREESHIP_THRESHOLD = 1000000;
 const SHIPPING_FEE = 30000;
 
-const LOCATION_OPTIONS = [
-  {
-    province: "Hà Nội",
-    districts: [
-      { name: "Cầu Giấy", wards: ["Dịch Vọng", "Nghĩa Đô", "Yên Hòa", "Mai Dịch"] },
-      { name: "Ba Đình", wards: ["Phúc Xá", "Trúc Bạch", "Ngọc Hà", "Kim Mã"] },
-      { name: "Hoàn Kiếm", wards: ["Hàng Bài", "Phúc Tân", "Hàng Gai", "Tràng Tiền"] },
-      { name: "Đống Đa", wards: ["Láng Hạ", "Ô Chợ Dừa", "Khâm Thiên", "Văn Miếu"] },
-      { name: "Thanh Xuân", wards: ["Nhân Chính", "Khương Đình", "Thanh Xuân Bắc"] },
-    ],
-  },
-  {
-    province: "Hồ Chí Minh",
-    districts: [
-      { name: "Quận 1", wards: ["Bến Nghé", "Cô Giang", "Nguyễn Thái Bình", "Tân Định"] },
-      { name: "Quận 3", wards: ["Phường 1", "Phường 2", "Phường 4", "Võ Thị Sáu"] },
-      { name: "Quận 10", wards: ["Phường 13", "Phường 14", "Phường 15"] },
-      { name: "Bình Thạnh", wards: ["Phường 1", "Phường 2", "Phường 14", "Phường 25"] },
-      { name: "Tân Bình", wards: ["Phường 1", "Phường 2", "Phường 4", "Phường 12"] },
-    ],
-  },
-  {
-    province: "Đà Nẵng",
-    districts: [
-      { name: "Hải Châu", wards: ["Thạch Thang", "Hòa Cường Bắc", "Hòa Cường Nam", "Bình Thuận"] },
-      { name: "Sơn Trà", wards: ["An Hải Bắc", "An Hải Đông", "An Hải Tây", "Phước Mỹ"] },
-      { name: "Thanh Khê", wards: ["Tam Thuận", "Thanh Khê Đông", "Chính Gián"] },
-    ],
-  },
-];
+function normalizeLocationSearch(value: string) {
+  return value
+    .toLocaleLowerCase("vi")
+    .replace(/đ/g, "d")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
 
 interface LocationAutocompleteProps {
   id: string;
@@ -65,6 +43,7 @@ interface LocationAutocompleteProps {
   options: string[];
   placeholder: string;
   onSelect: (value: string) => void;
+  disabled?: boolean;
 }
 
 function LocationAutocomplete({
@@ -74,13 +53,14 @@ function LocationAutocomplete({
   options,
   placeholder,
   onSelect,
+  disabled = false,
 }: LocationAutocompleteProps) {
   const [query, setQuery] = useState(value);
   const [isOpen, setIsOpen] = useState(false);
-  const normalizedQuery = query.trim().toLocaleLowerCase("vi");
-  const suggestions = options.filter((option) =>
-    option.toLocaleLowerCase("vi").includes(normalizedQuery)
-  );
+  const normalizedQuery = normalizeLocationSearch(query.trim());
+  const suggestions = options
+    .filter((option) => normalizeLocationSearch(option).includes(normalizedQuery))
+    .slice(0, 8);
 
   function selectOption(option: string) {
     setQuery(option);
@@ -102,11 +82,12 @@ function LocationAutocomplete({
           type="text"
           role="combobox"
           aria-autocomplete="list"
-          aria-expanded={isOpen}
+          aria-expanded={isOpen && !disabled}
           aria-controls={`${id}-suggestions`}
           autoComplete="off"
           value={query}
           placeholder={placeholder}
+          disabled={disabled}
           onFocus={() => setIsOpen(true)}
           onChange={(event) => {
             setQuery(event.target.value);
@@ -133,7 +114,7 @@ function LocationAutocomplete({
         <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
       </div>
 
-      {isOpen && (
+      {isOpen && !disabled && (
         <div
           id={`${id}-suggestions`}
           role="listbox"
@@ -172,9 +153,12 @@ export default function CheckoutPage() {
   const [customerName, setCustomerName] = useState("");
   const [phone, setPhone] = useState("");
   const [street, setStreet] = useState("");
-  const [province, setProvince] = useState(LOCATION_OPTIONS[0].province);
-  const [district, setDistrict] = useState(LOCATION_OPTIONS[0].districts[0].name);
-  const [ward, setWard] = useState(LOCATION_OPTIONS[0].districts[0].wards[0]);
+  const [locations, setLocations] = useState<ProvinceLocation[]>([]);
+  const [locationsLoading, setLocationsLoading] = useState(true);
+  const [locationsError, setLocationsError] = useState(false);
+  const [province, setProvince] = useState("Hà Nội");
+  const [legacyDistrict, setLegacyDistrict] = useState("");
+  const [ward, setWard] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"cod" | "banking">("cod");
 
   const [saveAddress, setSaveAddress] = useState(true);
@@ -189,12 +173,40 @@ export default function CheckoutPage() {
   const shippingCost = subtotal > 0 ? (isFreeship ? 0 : SHIPPING_FEE) : 0;
   const totalAmount = subtotal + shippingCost;
 
-  // Selected province's districts
-  const currentProvinceData =
-    LOCATION_OPTIONS.find((p) => p.province === province) || LOCATION_OPTIONS[0];
-  const currentDistrictData =
-    currentProvinceData.districts.find((d) => d.name === district) ||
-    currentProvinceData.districts[0];
+  const currentProvince = locations.find((location) => location.name === province);
+  const wardOptions = currentProvince?.wards.map((location) => location.name) ?? [];
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadLocations() {
+      try {
+        const response = await fetch("/api/locations", { cache: "force-cache" });
+        if (!response.ok) {
+          throw new Error("Không tải được danh sách địa chỉ");
+        }
+
+        const data = (await response.json()) as ProvinceLocation[];
+        if (active) {
+          setLocations(data);
+          setProvince((current) =>
+            data.some((location) => location.name === current)
+              ? current
+              : data.find((location) => location.name === "Hà Nội")?.name ?? data[0]?.name ?? ""
+          );
+        }
+      } catch {
+        if (active) setLocationsError(true);
+      } finally {
+        if (active) setLocationsLoading(false);
+      }
+    }
+
+    void loadLocations();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!session?.user) return;
@@ -206,9 +218,9 @@ export default function CheckoutPage() {
         setCustomerName(data.customerName || "");
         setPhone(data.phone || "");
         setStreet(data.street || "");
-        setProvince(data.province || LOCATION_OPTIONS[0].province);
-        setDistrict(data.district || LOCATION_OPTIONS[0].districts[0].name);
-        setWard(data.ward || LOCATION_OPTIONS[0].districts[0].wards[0]);
+        setProvince((data.province || "Hà Nội").replace(/^(Tỉnh|Thành phố)\s+/u, ""));
+        setLegacyDistrict(data.district || "");
+        setWard(data.ward || "");
         setHasSaved(true);
         setUseSavedAddress(true);
       } else {
@@ -222,26 +234,17 @@ export default function CheckoutPage() {
 
   function handleProvinceChange(newProv: string) {
     setProvince(newProv);
-    const provData = LOCATION_OPTIONS.find((p) => p.province === newProv) || LOCATION_OPTIONS[0];
-    const firstDistrict = provData.districts[0];
-    setDistrict(firstDistrict.name);
-    setWard(firstDistrict.wards[0]);
+    setWard("");
   }
 
-  function handleDistrictChange(newDist: string) {
-    setDistrict(newDist);
-    const distData = currentProvinceData.districts.find((d) => d.name === newDist);
-    if (distData && distData.wards.length > 0) {
-      setWard(distData.wards[0]);
-    }
-  }
-
-  const fullAddress = [street, ward, district, province].filter(Boolean).join(", ");
+  const fullAddress = [street, ward, useSavedAddress ? legacyDistrict : "", province]
+    .filter(Boolean)
+    .join(", ");
 
   async function handleOrder(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!customerName.trim() || !phone.trim() || !street.trim() || !ward || !district || !province) {
+    if (!customerName.trim() || !phone.trim() || !street.trim() || !ward || !province) {
       toast.error("Vui lòng điền đầy đủ họ tên, số điện thoại và địa chỉ giao hàng");
       return;
     }
@@ -258,7 +261,7 @@ export default function CheckoutPage() {
         const storageKey = `${STORAGE_KEY}_${session.user.email}`;
         localStorage.setItem(
           storageKey,
-          JSON.stringify({ customerName, phone, street, ward, district, province })
+          JSON.stringify({ customerName, phone, street, ward, province })
         );
       }
 
@@ -455,7 +458,11 @@ export default function CheckoutPage() {
                       <input
                         type="radio"
                         checked={!useSavedAddress}
-                        onChange={() => setUseSavedAddress(false)}
+                        onChange={() => {
+                          setUseSavedAddress(false);
+                          setLegacyDistrict("");
+                          setWard("");
+                        }}
                         className="accent-red-600"
                       />
                       Nhập địa chỉ mới
@@ -509,40 +516,41 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+                {locationsLoading && (
+                  <p className="text-xs text-slate-500" role="status">
+                    Đang tải danh sách tỉnh/thành và phường/xã...
+                  </p>
+                )}
+                {locationsError && (
+                  <p className="text-xs text-red-600" role="alert">
+                    Không tải được dữ liệu địa chỉ. Vui lòng kiểm tra kết nối và tải lại trang.
+                  </p>
+                )}
+
+                <div className="grid grid-cols-1 gap-4 pt-1 sm:grid-cols-2">
                   <div>
                     <LocationAutocomplete
                       key={province}
                       id="province"
                       label="Tỉnh / Thành phố"
                       value={province}
-                      options={LOCATION_OPTIONS.map((location) => location.province)}
+                      options={locations.map((location) => location.name)}
                       placeholder="Gõ để tìm tỉnh/thành phố"
                       onSelect={handleProvinceChange}
+                      disabled={locationsLoading || locationsError}
                     />
                   </div>
 
                   <div>
                     <LocationAutocomplete
-                      key={`${province}-${district}`}
-                      id="district"
-                      label="Quận / Huyện"
-                      value={district}
-                      options={currentProvinceData.districts.map((location) => location.name)}
-                      placeholder="Gõ để tìm quận/huyện"
-                      onSelect={handleDistrictChange}
-                    />
-                  </div>
-
-                  <div>
-                    <LocationAutocomplete
-                      key={`${district}-${ward}`}
+                      key={`${province}-${ward}`}
                       id="ward"
-                      label="Phường / Xã"
+                      label="Phường / Xã / Đặc khu"
                       value={ward}
-                      options={currentDistrictData.wards}
+                      options={wardOptions}
                       placeholder="Gõ để tìm phường/xã"
                       onSelect={setWard}
+                      disabled={locationsLoading || locationsError || !province}
                     />
                   </div>
                 </div>
