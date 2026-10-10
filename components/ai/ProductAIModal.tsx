@@ -144,12 +144,12 @@ export default function ProductAIModal({ productId, productName }: Props) {
       {/* Trigger button */}
       <button
         onClick={() => setOpen(true)}
-        className="w-full mt-4 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+        className="w-full mt-3 py-3 rounded-xl border border-red-200 bg-red-50 text-red-700 font-bold text-xs uppercase tracking-wider hover:bg-red-100 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
       >
-        <span>💬</span>
-        <span>Tư vấn miễn phí</span>
+        <span>🏸</span>
+        <span>Tư vấn kỹ thuật AI cho sản phẩm này</span>
         {messageCount > 0 && (
-          <span className="bg-white text-blue-600 text-xs font-bold px-2 py-0.5 rounded-full">
+          <span className="bg-red-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
             {messageCount}
           </span>
         )}
@@ -361,7 +361,7 @@ export default function ProductAIModal({ productId, productName }: Props) {
                 <button
                   onClick={() => sendMessage()}
                   disabled={loading || !input.trim()}
-                  className="bg-blue-600 text-white px-5 rounded-xl hover:bg-blue-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all font-medium text-sm"
+                  className="bg-red-600 text-white px-5 rounded-xl hover:bg-red-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all font-bold text-xs uppercase tracking-wider"
                 >
                   Gửi
                 </button>

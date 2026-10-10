@@ -1,6 +1,18 @@
-﻿import { Fragment } from "react";
 import Link from "next/link";
+import {
+  ChevronRight,
+  Filter,
+  Search,
+  RotateCcw,
+  SlidersHorizontal,
+  Home,
+  Tag,
+  X,
+  PackageX,
+} from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import ProductCard from "@/components/products/ProductCard";
+import ProductFilterControls from "@/components/products/ProductFilterControls";
 
 interface Props {
   searchParams: Promise<{
@@ -9,15 +21,16 @@ interface Props {
     brand?: string | string[];
     minPrice?: string;
     maxPrice?: string;
+    sort?: string;
     page?: string;
   }>;
 }
 
 const CATEGORIES = [
-  { label: "Tất cả", slug: "", icon: "🏪" },
+  { label: "Tất cả sản phẩm", slug: "", icon: "🏪" },
   { label: "Vợt cầu lông", slug: "vot-cau-long", icon: "🏸" },
   { label: "Giày cầu lông", slug: "giay-cau-long", icon: "👟" },
-  { label: "Túi / Balo", slug: "tui-cau-long", icon: "🎒" },
+  { label: "Túi & Balo", slug: "tui-cau-long", icon: "🎒" },
   { label: "Dây cước", slug: "day-cuoc", icon: "🪢" },
   { label: "Phụ kiện", slug: "phu-kien", icon: "🛍️" },
 ];
@@ -62,8 +75,10 @@ export default async function ProductsPage({ searchParams }: Props) {
     : [];
   const minPrice = params.minPrice || "";
   const maxPrice = params.maxPrice || "";
-  const page = parseInt(params.page || "1");
+  const sort = params.sort || "newest";
+  const page = parseInt(params.page || "1", 10) || 1;
 
+  // Build Prisma where filter
   const where = {
     AND: [
       search ? { name: { contains: search, mode: "insensitive" as const } } : {},
@@ -72,200 +87,422 @@ export default async function ProductsPage({ searchParams }: Props) {
       minPrice || maxPrice
         ? {
             price: {
-              ...(minPrice ? { gte: parseInt(minPrice) } : {}),
-              ...(maxPrice ? { lte: parseInt(maxPrice) } : {}),
+              ...(minPrice ? { gte: parseInt(minPrice, 10) } : {}),
+              ...(maxPrice ? { lte: parseInt(maxPrice, 10) } : {}),
             },
           }
         : {},
     ],
   };
 
-  const [products, total] = await Promise.all([
+  // Determine sorting order
+  let orderBy: any = { createdAt: "desc" };
+  if (sort === "price-asc") orderBy = { price: "asc" };
+  else if (sort === "price-desc") orderBy = { price: "desc" };
+  else if (sort === "name") orderBy = { name: "asc" };
+
+  const [products, total, currentCategory] = await Promise.all([
     prisma.product.findMany({
       where,
-      include: { category: { select: { name: true, slug: true } } },
-      orderBy: { createdAt: "desc" },
+      include: {
+        category: { select: { name: true, slug: true } },
+        reviews: true,
+      },
+      orderBy,
       skip: (page - 1) * LIMIT,
       take: LIMIT,
     }),
     prisma.product.count({ where }),
+    categorySlug
+      ? prisma.category.findUnique({ where: { slug: categorySlug } })
+      : null,
   ]);
 
-  const totalPages = Math.ceil(total / LIMIT);
+  const totalPages = Math.ceil(total / LIMIT) || 1;
   const cur = {
     search: search || undefined,
     category: categorySlug || undefined,
     brand: activeBrands.length > 0 ? activeBrands : undefined,
     minPrice: minPrice || undefined,
     maxPrice: maxPrice || undefined,
+    sort: sort !== "newest" ? sort : undefined,
   };
 
+  const hasActiveFilters =
+    Boolean(search) ||
+    Boolean(categorySlug) ||
+    activeBrands.length > 0 ||
+    Boolean(minPrice) ||
+    Boolean(maxPrice);
+
+  const pageTitle = currentCategory
+    ? currentCategory.name
+    : search
+    ? `Kết quả tìm kiếm cho "${search}"`
+    : "Tất cả sản phẩm cầu lông";
+
   return (
-    <div className="min-h-screen bg-[#0B0F19] text-white">
-      <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
-        <div className="mb-8 rounded-[2rem] border border-slate-700 bg-[#121824]/80 p-8 shadow-[0_40px_120px_-80px_rgba(0,0,0,0.85)] backdrop-blur-xl">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-16">
+      {/* 1. BREADCRUMB */}
+      <div className="border-b border-slate-200 bg-white py-3">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <nav className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+            <Link href="/" className="hover:text-red-600 transition flex items-center gap-1">
+              <Home className="h-3.5 w-3.5" />
+              <span>Trang chủ</span>
+            </Link>
+            <ChevronRight className="h-3 w-3 text-slate-400" />
+            <Link href="/products" className="hover:text-red-600 transition">
+              Sản phẩm
+            </Link>
+            {currentCategory && (
+              <>
+                <ChevronRight className="h-3 w-3 text-slate-400" />
+                <span className="text-slate-900 font-bold">{currentCategory.name}</span>
+              </>
+            )}
+            {search && !currentCategory && (
+              <>
+                <ChevronRight className="h-3 w-3 text-slate-400" />
+                <span className="text-slate-900 font-bold">"{search}"</span>
+              </>
+            )}
+          </nav>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+        {/* 2. CATEGORY BANNER HEADER */}
+        <div className="mb-8 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm uppercase tracking-[0.35em] text-[#94A3B8]">Danh sách sản phẩm</p>
-              <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-white sm:text-5xl">Tìm chiếc vợt hoàn hảo cho mọi cú đánh</h1>
-              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-400">Lọc theo thương hiệu, danh mục và thông số để chọn cây vợt chuyên nghiệp, chuẩn tốc độ và phản hồi.</p>
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-red-700">
+                <Tag className="h-3.5 w-3.5 text-red-600" />
+                <span>Kho trang bị thể thao chính hãng</span>
+              </div>
+              <h1 className="mt-3 text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight">
+                {pageTitle}
+              </h1>
+              <p className="mt-2 text-xs sm:text-sm text-slate-500 max-w-2xl leading-relaxed">
+                Khám phá tuyển tập vợt, giày và phụ kiện thi đấu tiêu chuẩn. Sử dụng bộ lọc thông minh để tìm đúng thông số phù hợp với lối chơi.
+              </p>
             </div>
-            <div className="rounded-full border border-[#CCFF00]/20 bg-white/5 px-6 py-3 text-sm font-semibold text-[#CCFF00] shadow-[0_0_30px_rgba(204,255,0,0.2)]">{total} sản phẩm</div>
+            <div className="shrink-0 self-start sm:self-center rounded-2xl bg-slate-100 border border-slate-200 px-5 py-3 text-center">
+              <span className="block text-2xl font-black text-slate-900">{total}</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Sản phẩm</span>
+            </div>
           </div>
         </div>
 
-        <div className="grid gap-8 xl:grid-cols-[320px_1fr]">
-          <aside className="space-y-6 rounded-[2rem] border border-slate-700 bg-[#121824]/80 p-6 shadow-[0_30px_80px_-50px_rgba(0,0,0,0.7)]">
-            <form method="GET" action="/products" className="space-y-5">
-              {categorySlug && <input type="hidden" name="category" value={categorySlug} />}
-              {activeBrands.map((b) => (
-                <input key={b} type="hidden" name="brand" value={b} />
-              ))}
-              {minPrice && <input type="hidden" name="minPrice" value={minPrice} />}
-              {maxPrice && <input type="hidden" name="maxPrice" value={maxPrice} />}
+        {/* 3. MAIN CONTENT: SIDEBAR + PRODUCT GRID */}
+        <div className="grid gap-8 lg:grid-cols-[280px_1fr]">
+          {/* ────────────────── FILTER SIDEBAR ────────────────── */}
+          <aside id="product-filter-sidebar" className="space-y-6">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sticky top-24">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-5">
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal className="h-4 w-4 text-red-600" />
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900">
+                    Bộ lọc sản phẩm
+                  </h2>
+                </div>
+                {hasActiveFilters && (
+                  <Link
+                    href="/products"
+                    className="text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    Xóa lọc
+                  </Link>
+                )}
+              </div>
 
-              <label className="block text-sm font-medium text-slate-300">Tìm kiếm</label>
-              <input
-                name="search"
-                defaultValue={search}
-                placeholder="Tìm sản phẩm..."
-                className="w-full rounded-2xl border border-slate-700 bg-[#0B0F19] px-4 py-3 text-slate-200 outline-none transition focus:border-[#CCFF00] focus:ring-2 focus:ring-[#CCFF00]/20"
-              />
-              <button className="w-full rounded-2xl bg-[#CCFF00] px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-[#dcff00]/90">Tìm kiếm</button>
-            </form>
+              {/* Search in sidebar */}
+              <form method="GET" action="/products" className="space-y-2 mb-6">
+                {categorySlug && <input type="hidden" name="category" value={categorySlug} />}
+                {activeBrands.map((b) => (
+                  <input key={b} type="hidden" name="brand" value={b} />
+                ))}
+                {minPrice && <input type="hidden" name="minPrice" value={minPrice} />}
+                {maxPrice && <input type="hidden" name="maxPrice" value={maxPrice} />}
+                {sort !== "newest" && <input type="hidden" name="sort" value={sort} />}
 
-            <div className="space-y-4">
-              <div>
-                <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-[#94A3B8]">Danh mục</h2>
-                <div className="mt-4 space-y-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Tìm từ khóa
+                </label>
+                <div className="relative">
+                  <input
+                    name="search"
+                    defaultValue={search}
+                    placeholder="Tên vợt, mã giày..."
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-xs text-slate-900 outline-none focus:border-red-600 focus:bg-white"
+                  />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                </div>
+              </form>
+
+              {/* Categories */}
+              <div className="mb-6">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                  Danh mục
+                </h3>
+                <div className="space-y-1">
                   {CATEGORIES.map((cat) => {
                     const active = categorySlug === cat.slug;
                     return (
                       <Link
                         key={cat.slug}
-                        href={buildHref({ ...cur, category: cat.slug || undefined }, { category: cat.slug || null, page: "1" })}
-                        className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm transition ${
+                        href={buildHref(
+                          { ...cur, category: cat.slug || undefined },
+                          { category: cat.slug || null, page: "1" }
+                        )}
+                        className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition ${
                           active
-                            ? "bg-[#CCFF00]/10 text-[#CCFF00]"
-                            : "text-slate-300 hover:bg-white/5 hover:text-white"
+                            ? "bg-red-50 text-red-600 font-bold"
+                            : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
                         }`}
                       >
-                        <span>{cat.icon}</span>
-                        {cat.label}
+                        <span className="flex items-center gap-2">
+                          <span>{cat.icon}</span>
+                          <span>{cat.label}</span>
+                        </span>
+                        {active && <span className="h-1.5 w-1.5 rounded-full bg-red-600" />}
                       </Link>
                     );
                   })}
                 </div>
               </div>
 
-              <div>
-                <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-[#94A3B8]">Thương hiệu</h2>
-                <div className="mt-4 space-y-2">
+              {/* Brands */}
+              <div className="mb-6 pt-5 border-t border-slate-100">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                  Thương hiệu
+                </h3>
+                <div className="space-y-1.5">
                   {BRANDS.map((brand) => {
                     const checked = activeBrands.includes(brand);
-                    const nextBrands = checked ? activeBrands.filter((b) => b !== brand) : [...activeBrands, brand];
+                    const nextBrands = checked
+                      ? activeBrands.filter((b) => b !== brand)
+                      : [...activeBrands, brand];
                     return (
                       <Link
                         key={brand}
-                        href={buildHref(cur, { brand: nextBrands.length ? nextBrands : null })}
-                        className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm text-slate-300 transition hover:bg-white/5 hover:text-white"
+                        href={buildHref(cur, {
+                          brand: nextBrands.length ? nextBrands : null,
+                          page: "1",
+                        })}
+                        className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-xs transition ${
+                          checked
+                            ? "font-bold text-red-600"
+                            : "text-slate-700 hover:text-slate-900"
+                        }`}
                       >
-                        <span className={`flex h-4 w-4 items-center justify-center rounded border ${checked ? "border-[#CCFF00] bg-[#CCFF00]" : "border-slate-700"}`}>
-                          {checked && <span className="h-2 w-2 rounded-full bg-slate-950" />}
-                        </span>
-                        {brand}
+                        <div
+                          className={`flex h-4 w-4 items-center justify-center rounded border transition ${
+                            checked
+                              ? "border-red-600 bg-red-600 text-white"
+                              : "border-slate-300 bg-white"
+                          }`}
+                        >
+                          {checked && <span className="text-[10px]">✓</span>}
+                        </div>
+                        <span>{brand}</span>
                       </Link>
                     );
                   })}
                 </div>
               </div>
 
-              <div>
-                <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-[#94A3B8]">Khoảng giá</h2>
-                <div className="mt-4 space-y-2">
+              {/* Price Ranges */}
+              <div className="pt-5 border-t border-slate-100">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                  Khoảng giá
+                </h3>
+                <div className="space-y-1">
                   {PRICE_RANGES.map((r) => {
                     const active = minPrice === r.min && maxPrice === r.max;
                     return (
                       <Link
                         key={r.label}
-                        href={buildHref(cur, { minPrice: r.min || null, maxPrice: r.max || null, page: "1" })}
-                        className={`flex items-center gap-2 rounded-2xl px-4 py-3 text-sm transition ${
-                          active ? "bg-[#CCFF00]/10 text-[#CCFF00]" : "text-slate-300 hover:bg-white/5 hover:text-white"
+                        href={buildHref(cur, {
+                          minPrice: r.min || null,
+                          maxPrice: r.max || null,
+                          page: "1",
+                        })}
+                        className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs transition ${
+                          active
+                            ? "bg-red-50 text-red-600 font-bold"
+                            : "text-slate-700 hover:bg-slate-50"
                         }`}
                       >
-                        {active && <span className="h-1.5 w-1.5 rounded-full bg-[#CCFF00]" />}
-                        {r.label}
+                        <span>{r.label}</span>
+                        {active && <span className="h-1.5 w-1.5 rounded-full bg-red-600" />}
                       </Link>
                     );
                   })}
                 </div>
               </div>
 
-              {(categorySlug || activeBrands.length > 0 || minPrice || maxPrice || search) && (
-                <Link href="/products" className="block text-center text-sm text-[#CCFF00] hover:text-white">
-                  ✕ Xoá tất cả bộ lọc
-                </Link>
+              {/* Clear button if active */}
+              {hasActiveFilters && (
+                <div className="mt-6 pt-5 border-t border-slate-100">
+                  <Link
+                    href="/products"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-700 hover:border-red-200 hover:text-red-600 transition"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Xóa tất cả bộ lọc
+                  </Link>
+                </div>
               )}
             </div>
           </aside>
 
-          <section className="space-y-8">
-            <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-[2rem] border border-slate-700 bg-[#121824]/80 p-6">
-                <p className="text-sm uppercase tracking-[0.3em] text-[#94A3B8]">Tổng sản phẩm</p>
-                <p className="mt-3 text-3xl font-black text-white">{total}</p>
-              </div>
-              <div className="rounded-[2rem] border border-slate-700 bg-[#121824]/80 p-6">
-                <p className="text-sm uppercase tracking-[0.3em] text-[#94A3B8]">Trang hiện tại</p>
-                <p className="mt-3 text-3xl font-black text-white">{page}</p>
-              </div>
-              <div className="rounded-[2rem] border border-slate-700 bg-[#121824]/80 p-6">
-                <p className="text-sm uppercase tracking-[0.3em] text-[#94A3B8]">Dòng CEO</p>
-                <p className="mt-3 text-3xl font-black text-[#CCFF00]">Elite</p>
-              </div>
-              <div className="rounded-[2rem] border border-slate-700 bg-[#121824]/80 p-6">
-                <p className="text-sm uppercase tracking-[0.3em] text-[#94A3B8]">Chất lượng</p>
-                <p className="mt-3 text-3xl font-black text-white">Pro</p>
-              </div>
-            </div>
+          {/* ────────────────── PRODUCT SECTION ────────────────── */}
+          <section className="space-y-6">
+            {/* Filter controls bar: Count + Sorting dropdown + Mobile filter button */}
+            <ProductFilterControls total={total} currentSort={sort} />
 
-            <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
-              {products.map((product) => (
-                <Link
-                  key={product.id}
-                  href={`/products/${product.slug}`}
-                  className="group overflow-hidden rounded-[2rem] border border-slate-700 bg-[#121824] shadow-[0_20px_60px_-30px_rgba(0,0,0,0.75)] transition duration-300 hover:-translate-y-1 hover:border-[#CCFF00]/60"
-                >
-                  <div className="relative h-72 overflow-hidden bg-slate-950">
-                    <img src={product.thumbnail} alt={product.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
-                    <div className="absolute inset-x-0 bottom-0 rounded-b-[2rem] bg-gradient-to-t from-[#0B0F19]/95 to-transparent p-5">
-                      <p className="text-xs uppercase tracking-[0.3em] text-[#CCFF00]">{product.brand}</p>
-                    </div>
-                  </div>
-                  <div className="space-y-4 p-6">
-                    <div>
-                      <h3 className="text-xl font-semibold text-white">{product.name}</h3>
-                      <p className="mt-2 text-sm leading-6 text-slate-400 line-clamp-2">{product.description}</p>
-                    </div>
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="text-2xl font-black text-[#CCFF00]">{Math.round(product.price).toLocaleString()}₫</span>
-                      <span className="rounded-full border border-slate-700 bg-white/5 px-4 py-2 text-sm text-slate-300">Chi tiết</span>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
+            {/* Active filter badges */}
+            {hasActiveFilters && (
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-slate-400 font-medium">Đang lọc theo:</span>
+                {categorySlug && (
+                  <Link
+                    href={buildHref(cur, { category: null })}
+                    className="inline-flex items-center gap-1 rounded-full bg-slate-200/80 px-3 py-1 font-semibold text-slate-800 hover:bg-red-100 hover:text-red-700 transition"
+                  >
+                    <span>{CATEGORIES.find((c) => c.slug === categorySlug)?.label}</span>
+                    <X className="h-3 w-3" />
+                  </Link>
+                )}
+                {activeBrands.map((b) => (
+                  <Link
+                    key={b}
+                    href={buildHref(cur, {
+                      brand: activeBrands.filter((item) => item !== b),
+                    })}
+                    className="inline-flex items-center gap-1 rounded-full bg-slate-200/80 px-3 py-1 font-semibold text-slate-800 hover:bg-red-100 hover:text-red-700 transition"
+                  >
+                    <span>{b}</span>
+                    <X className="h-3 w-3" />
+                  </Link>
+                ))}
+                {(minPrice || maxPrice) && (
+                  <Link
+                    href={buildHref(cur, { minPrice: null, maxPrice: null })}
+                    className="inline-flex items-center gap-1 rounded-full bg-slate-200/80 px-3 py-1 font-semibold text-slate-800 hover:bg-red-100 hover:text-red-700 transition"
+                  >
+                    <span>
+                      {PRICE_RANGES.find((r) => r.min === minPrice && r.max === maxPrice)?.label ||
+                        "Khoảng giá"}
+                    </span>
+                    <X className="h-3 w-3" />
+                  </Link>
+                )}
+                {search && (
+                  <Link
+                    href={buildHref(cur, { search: null })}
+                    className="inline-flex items-center gap-1 rounded-full bg-slate-200/80 px-3 py-1 font-semibold text-slate-800 hover:bg-red-100 hover:text-red-700 transition"
+                  >
+                    <span>"{search}"</span>
+                    <X className="h-3 w-3" />
+                  </Link>
+                )}
+              </div>
+            )}
 
-            <div className="flex flex-col items-center gap-4 rounded-[2rem] border border-slate-700 bg-[#121824]/80 px-6 py-8 text-center text-slate-300">
-              <p className="text-sm uppercase tracking-[0.35em] text-[#94A3B8]">Nâng cấp trải nghiệm</p>
-              <h2 className="text-3xl font-extrabold text-white">Mua vợt chuyên nghiệp với thiết kế tối ưu và giá cạnh tranh</h2>
-              <Link href="/checkout" className="inline-flex rounded-full bg-[#CCFF00] px-8 py-3 font-semibold text-slate-950 transition hover:bg-[#daff00]/90">Thanh toán nhanh</Link>
-            </div>
+            {/* Product Grid */}
+            {products.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
+                {products.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    id={product.id}
+                    name={product.name}
+                    slug={product.slug}
+                    thumbnail={product.thumbnail}
+                    price={product.price}
+                    brand={product.brand}
+                    stock={product.stock}
+                    category={product.category}
+                    reviews={product.reviews}
+                  />
+                ))}
+              </div>
+            ) : (
+              /* Empty state */
+              <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                  <PackageX className="h-10 w-10 text-slate-400" />
+                </div>
+                <h3 className="mt-4 text-lg font-bold text-slate-900">
+                  Không tìm thấy sản phẩm phù hợp
+                </h3>
+                <p className="mt-1 text-xs sm:text-sm text-slate-500 max-w-sm mx-auto">
+                  Hãy thử điều chỉnh bộ lọc, thương hiệu hoặc tìm kiếm với từ khóa khác.
+                </p>
+                <div className="mt-6">
+                  <Link
+                    href="/products"
+                    className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-sm hover:bg-red-700 transition"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span>Xem tất cả sản phẩm</span>
+                  </Link>
+                </div>
+              </div>
+            )}
 
-            <div className="flex items-center justify-between rounded-[2rem] border border-slate-700 bg-[#121824]/80 px-6 py-5 text-sm text-slate-400">
-              <span>Trang {page} / {totalPages}</span>
-              <span>{activeBrands.length} thương hiệu</span>
-            </div>
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 pt-8">
+                {page > 1 ? (
+                  <Link
+                    href={buildHref(cur, { page: String(page - 1) })}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:border-red-300 hover:text-red-600"
+                  >
+                    ← Trước
+                  </Link>
+                ) : (
+                  <span className="rounded-xl border border-slate-200 bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-400 cursor-not-allowed">
+                    ← Trước
+                  </span>
+                )}
+
+                <div className="flex items-center gap-1.5">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+                    const isCur = p === page;
+                    return (
+                      <Link
+                        key={p}
+                        href={buildHref(cur, { page: String(p) })}
+                        className={`flex h-9 w-9 items-center justify-center rounded-xl text-xs font-bold transition ${
+                          isCur
+                            ? "bg-red-600 text-white shadow-sm"
+                            : "border border-slate-200 bg-white text-slate-700 hover:border-red-200 hover:text-red-600"
+                        }`}
+                      >
+                        {p}
+                      </Link>
+                    );
+                  })}
+                </div>
+
+                {page < totalPages ? (
+                  <Link
+                    href={buildHref(cur, { page: String(page + 1) })}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:border-red-300 hover:text-red-600"
+                  >
+                    Sau →
+                  </Link>
+                ) : (
+                  <span className="rounded-xl border border-slate-200 bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-400 cursor-not-allowed">
+                    Sau →
+                  </span>
+                )}
+              </div>
+            )}
           </section>
         </div>
       </div>

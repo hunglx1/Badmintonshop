@@ -1,13 +1,5 @@
 import cloudinary from "@/lib/cloudinary";
 import { NextResponse } from "next/server";
-console.log("CLOUD NAME:", process.env.CLOUDINARY_CLOUD_NAME);
-console.log("API KEY:", process.env.CLOUDINARY_API_KEY);
-console.log(
-  "API SECRET:",
-  process.env.CLOUDINARY_API_SECRET
-    ? "OK"
-    : "MISSING"
-);
 export async function POST(
   request: Request
 ) {
@@ -29,11 +21,6 @@ export async function POST(
         }
       );
     }
-
-    console.log(
-      "FILE:",
-      file.name
-    );
 
     const bytes =
       await file.arrayBuffer();
@@ -64,20 +51,10 @@ export async function POST(
         }
       );
 
-    console.log(
-      "CLOUDINARY:",
-      result
-    );
-
     return NextResponse.json({
       url: result.secure_url,
     });
-  } catch (error) {
-    console.error(
-      "UPLOAD ERROR:",
-      error
-    );
-
+  } catch {
     return NextResponse.json(
       {
         error:
