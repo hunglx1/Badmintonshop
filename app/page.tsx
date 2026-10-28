@@ -309,7 +309,7 @@ export default async function HomePage() {
               name={product.name}
               slug={product.slug}
               thumbnail={product.thumbnail}
-              price={product.price}
+              price={Number(product.price)}
               brand={product.brand}
               stock={product.stock}
               category={product.category}
@@ -409,7 +409,7 @@ export default async function HomePage() {
               name={product.name}
               slug={product.slug}
               thumbnail={product.thumbnail}
-              price={product.price}
+              price={Number(product.price)}
               brand={product.brand}
               stock={product.stock}
               category={product.category}

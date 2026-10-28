@@ -45,7 +45,7 @@ const product =
       name: body.name,
       slug: body.slug,
       brand: body.brand,
-      price: Number(body.price),
+      price: String(body.price),
       stock: Number(body.stock),
       thumbnail: body.thumbnail,
       description: body.description,

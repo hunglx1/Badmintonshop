@@ -22,8 +22,8 @@ export async function GET(req: NextRequest) {
       }),
       ...((minPrice || maxPrice) && {
         price: {
-          ...(minPrice ? { gte: parseInt(minPrice) } : {}),
-          ...(maxPrice ? { lte: parseInt(maxPrice) } : {}),
+          ...(minPrice ? { gte: Number(minPrice) } : {}),
+          ...(maxPrice ? { lte: Number(maxPrice) } : {}),
         },
       }),
       ...(search && {
@@ -46,7 +46,15 @@ export async function GET(req: NextRequest) {
       prisma.product.count({ where }),
     ]);
 
-    return NextResponse.json({ products, total, page, limit });
+    return NextResponse.json({
+      products: products.map((product) => ({
+        ...product,
+        price: Number(product.price),
+      })),
+      total,
+      page,
+      limit,
+    });
   } catch (error) {
     console.error(error);
     return NextResponse.json(

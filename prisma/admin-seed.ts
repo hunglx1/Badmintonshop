@@ -4,9 +4,14 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
+  const password = process.env.ADMIN_SEED_PASSWORD;
+  if (!password || password.length < 12) {
+    throw new Error("Set ADMIN_SEED_PASSWORD to a value of at least 12 characters.");
+  }
+
   const hashed =
     await bcrypt.hash(
-      "123456",
+      password,
       10
     );
 

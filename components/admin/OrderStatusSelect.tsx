@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 interface Props {
   orderId: string;
@@ -16,7 +17,7 @@ export default function OrderStatusSelect({
   async function updateStatus(
     status: string
   ) {
-    await fetch(
+    const response = await fetch(
       `/api/admin/orders/${orderId}`,
       {
         method: "PUT",
@@ -32,8 +33,24 @@ export default function OrderStatusSelect({
       }
     );
 
+    if (!response.ok) {
+      const data = await response.json();
+      toast.error(data.error || "Cập nhật trạng thái thất bại");
+      return;
+    }
+
+    toast.success("Đã cập nhật trạng thái đơn hàng");
     router.refresh();
   }
+
+  const transitions: Record<string, string[]> = {
+    PENDING: ["CONFIRMED", "CANCELLED"],
+    CONFIRMED: ["SHIPPING", "CANCELLED"],
+    SHIPPING: ["COMPLETED"],
+    COMPLETED: [],
+    CANCELLED: [],
+  };
+  const options = [currentStatus, ...(transitions[currentStatus] ?? [])];
 
   return (
     <select
@@ -47,25 +64,11 @@ export default function OrderStatusSelect({
         p-2
       "
     >
-      <option value="PENDING">
-        PENDING
-      </option>
-
-      <option value="CONFIRMED">
-        CONFIRMED
-      </option>
-
-      <option value="SHIPPING">
-        SHIPPING
-      </option>
-
-      <option value="COMPLETED">
-        COMPLETED
-      </option>
-
-      <option value="CANCELLED">
-        CANCELLED
-      </option>
+      {options.map((status) => (
+        <option key={status} value={status}>
+          {status}
+        </option>
+      ))}
     </select>
   );
 }

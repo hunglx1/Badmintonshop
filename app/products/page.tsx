@@ -422,7 +422,7 @@ export default async function ProductsPage({ searchParams }: Props) {
                     name={product.name}
                     slug={product.slug}
                     thumbnail={product.thumbnail}
-                    price={product.price}
+                    price={Number(product.price)}
                     brand={product.brand}
                     stock={product.stock}
                     category={product.category}

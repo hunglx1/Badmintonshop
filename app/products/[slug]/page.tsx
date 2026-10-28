@@ -178,7 +178,7 @@ export default async function ProductDetailPage({ params }: Props) {
               </span>
               <div className="flex items-baseline gap-3">
                 <span className="text-3xl sm:text-4xl font-black text-red-600">
-                  {product.price.toLocaleString("vi-VN")}₫
+                  {Number(product.price).toLocaleString("vi-VN")}₫
                 </span>
                 <span className="text-xs font-semibold text-slate-400">
                   (Đã bao gồm VAT)
@@ -187,7 +187,7 @@ export default async function ProductDetailPage({ params }: Props) {
             </div>
 
             {/* Action Buttons & Quantity */}
-            <ProductDetailActions product={product} />
+            <ProductDetailActions product={{ ...product, price: Number(product.price) }} />
 
             {/* Services & Guarantees */}
             <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5 space-y-3.5 text-xs text-slate-600">
@@ -290,7 +290,7 @@ export default async function ProductDetailPage({ params }: Props) {
                   name={item.name}
                   slug={item.slug}
                   thumbnail={item.thumbnail}
-                  price={item.price}
+                  price={Number(item.price)}
                   brand={item.brand}
                   stock={item.stock}
                   category={item.category}

@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useCartStore } from "@/store/cart-store";
 
 interface Props {
   productId: string;
@@ -19,26 +18,16 @@ interface SuggestedProduct {
   brand: string;
 }
 
-interface Competitor {
-  name: string;
-  brand: string;
-  price: string;
-  source: string;
-}
-
 interface Message {
   role: "user" | "assistant";
   content: string;
   suggestedProducts?: SuggestedProduct[];
-  competitors?: Competitor[];
 }
 
 const SUGGESTIONS = [
   "So sánh với sản phẩm khác cùng loại",
-  "So sánh giá với đối thủ trên thị trường",
   "Sản phẩm này phù hợp với ai?",
   "Người mới chơi dùng được không?",
-  "Có nên căng 28lbs không?",
   "Gợi ý sản phẩm phù hợp cho tôi",
 ];
 
@@ -80,11 +69,10 @@ export default function ProductAIModal({ productId, productName }: Props) {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: `Xin chào 👋 Tôi là tư vấn viên của Hưng Badminton!\n\nTôi có thể giúp bạn:\n• So sánh sản phẩm này với các sản phẩm khác\n• So sánh giá với đối thủ trên thị trường\n• Gợi ý sản phẩm phù hợp với bạn\n• Tư vấn thông số kỹ thuật\n\nHãy đặt câu hỏi nhé! 🏸`,
+      content: `Xin chào 👋 Tôi là tư vấn viên của Hưng Badminton!${productName ? ` Bạn đang xem ${productName}.` : ""}\n\nTôi có thể tư vấn dựa trên thông tin sản phẩm và hàng đang có tại cửa hàng:\n• So sánh với sản phẩm khác cùng danh mục\n• Tư vấn thông số và mức độ phù hợp\n• Gợi ý sản phẩm đang bán tại cửa hàng\n\nHãy đặt câu hỏi nhé! 🏸`,
     },
   ]);
 
-  const cartItems = useCartStore((state) => state.items);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -111,12 +99,14 @@ export default function ProductAIModal({ productId, productName }: Props) {
         body: JSON.stringify({
           productId,
           message: text,
-          history: messages.slice(1).map((m) => ({ role: m.role, content: m.content })),
-          cartItems: cartItems.map((i) => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity })),
+          history: messages.slice(-6).map((m) => ({ role: m.role, content: m.content })),
         }),
       });
 
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Không thể kết nối với trợ lý AI.");
+      }
 
       setMessages((prev) => [
         ...prev,
@@ -124,17 +114,21 @@ export default function ProductAIModal({ productId, productName }: Props) {
           role: "assistant",
           content: data.answer || "Xin lỗi, hiện tôi chưa thể trả lời.",
           suggestedProducts: data.suggestedProducts ?? [],
-          competitors: data.competitors ?? [],
         },
       ]);
-    } catch {
+    } catch (error) {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Xin lỗi, hệ thống đang bận. Vui lòng thử lại sau." },
+        {
+          role: "assistant",
+          content: error instanceof Error
+            ? error.message
+            : "Xin lỗi, hệ thống đang bận. Vui lòng thử lại sau.",
+        },
       ]);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   const messageCount = messages.length - 1;
@@ -196,15 +190,6 @@ export default function ProductAIModal({ productId, productName }: Props) {
                 </button>
               </div>
             </div>
-
-            {/* Cart banner */}
-            {cartItems.length > 0 && (
-              <div className="px-4 py-2 bg-amber-50 border-b border-amber-100 shrink-0">
-                <p className="text-xs text-amber-700">
-                  🛒 Hưng đang xem giỏ hàng ({cartItems.length} sản phẩm) để tư vấn tốt hơn
-                </p>
-              </div>
-            )}
 
             {/* Suggestions khi mới mở */}
             {messageCount === 0 && (
@@ -283,28 +268,6 @@ export default function ProductAIModal({ productId, productName }: Props) {
                       </div>
                     )}
 
-                    {/* Competitor comparison table */}
-                    {msg.role === "assistant" && msg.competitors && msg.competitors.length > 0 && (
-                      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                        <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200">
-                          <p className="text-xs font-semibold text-gray-700">🔍 So sánh giá thị trường (realtime)</p>
-                        </div>
-                        <div className="divide-y divide-gray-100">
-                          {msg.competitors.map((c, i) => (
-                            <div key={i} className="flex items-center justify-between px-4 py-3">
-                              <div>
-                                <p className="text-xs font-medium text-gray-800 leading-tight">{c.name}</p>
-                                <p className="text-xs text-gray-500">{c.brand} · {c.source}</p>
-                              </div>
-                              <p className="text-sm font-bold text-orange-500 shrink-0 ml-3">{c.price}</p>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="px-4 py-2 bg-gray-50 border-t border-gray-100">
-                          <p className="text-xs text-gray-400">* Giá tham khảo, có thể thay đổi theo thời gian</p>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
               ))}
@@ -337,7 +300,7 @@ export default function ProductAIModal({ productId, productName }: Props) {
             <div className="border-t p-4 bg-white shrink-0">
               {messageCount > 0 && messageCount < 3 && (
                 <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
-                  {["So sánh giá đối thủ", "Gợi ý sản phẩm phù hợp", "Có nên mua không?"].map((s) => (
+                  {["So sánh sản phẩm cùng danh mục", "Gợi ý sản phẩm phù hợp", "Sản phẩm này có hợp với tôi không?"].map((s) => (
                     <button
                       key={s}
                       onClick={() => sendMessage(s)}
@@ -367,7 +330,7 @@ export default function ProductAIModal({ productId, productName }: Props) {
                 </button>
               </div>
               <p className="text-xs text-gray-400 mt-2 text-center">
-                Giá đối thủ được tìm kiếm realtime · Có thể có sai sót
+                Tư vấn dựa trên thông tin sản phẩm và tồn kho trong cửa hàng
               </p>
             </div>
           </div>

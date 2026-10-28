@@ -1,12 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
 import {
-  ShieldCheck,
   Truck,
   CheckCircle2,
   Home,
@@ -27,6 +25,14 @@ import type { ProvinceLocation } from "@/types/address";
 const STORAGE_KEY = "hungbadminton_address";
 const FREESHIP_THRESHOLD = 1000000;
 const SHIPPING_FEE = 30000;
+
+interface ConfirmedOrder {
+  id: string;
+  customerName: string;
+  phone: string;
+  address: string;
+  totalAmount: number;
+}
 
 function normalizeLocationSearch(value: string) {
   return value
@@ -145,7 +151,6 @@ function LocationAutocomplete({
 }
 
 export default function CheckoutPage() {
-  const router = useRouter();
   const { data: session } = useSession();
   const items = useCartStore((state) => state.items);
   const clearCart = useCartStore((state) => state.clearCart);
@@ -166,7 +171,7 @@ export default function CheckoutPage() {
   const [hasSaved, setHasSaved] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [confirmedOrder, setConfirmedOrder] = useState<any>(null);
+  const [confirmedOrder, setConfirmedOrder] = useState<ConfirmedOrder | null>(null);
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const isFreeship = subtotal >= FREESHIP_THRESHOLD;
@@ -272,30 +277,36 @@ export default function CheckoutPage() {
           customerName: customerName.trim(),
           phone: phone.trim(),
           address: fullAddress,
-          items,
-          totalAmount,
+          items: items.map((item) => ({
+            productId: item.id,
+            quantity: item.quantity,
+          })),
         }),
       });
 
       const data = await res.json();
 
-      if (!res.ok || !data.success) {
+      if (!res.ok || !data.success || !data.order) {
         throw new Error(data.error || "Đặt hàng thất bại");
       }
 
       setConfirmedOrder({
-        id: data.order?.id,
+        id: data.order.id,
         customerName,
         phone,
         address: fullAddress,
-        totalAmount,
+        totalAmount: Number(data.order.totalAmount),
       });
 
       setSuccess(true);
       clearCart();
       toast.success("Đặt hàng thành công!");
-    } catch (err: any) {
-      toast.error(err.message || "Có lỗi xảy ra, vui lòng thử lại sau.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Có lỗi xảy ra, vui lòng thử lại sau."
+      );
     } finally {
       setLoading(false);
     }

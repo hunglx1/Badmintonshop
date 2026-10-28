@@ -182,7 +182,7 @@ export default async function AdminPage() {
                       {order.phone}
                     </td>
                     <td className="px-4 py-3 font-bold text-slate-900">
-                      {order.totalAmount.toLocaleString("vi-VN")}₫
+                      {Number(order.totalAmount).toLocaleString("vi-VN")}₫
                     </td>
                     <td className="px-4 py-3">
                       <span
